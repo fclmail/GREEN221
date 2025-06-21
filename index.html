@@ -1,0 +1,754 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+  <meta charset="UTF-8">  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <title>DODO Flash Loan Arbitrage</title>  
+  <style>  
+    /* Existing styles remain unchanged */  
+    body {  
+      font-family: Arial, sans-serif;  
+      margin: 0;  
+      padding: 20px;  
+      background-color: #f5f5f5;  
+    }  
+    .container {  
+      max-width: 1200px;  
+      margin: 0 auto;  
+      background-color: white;  
+      padding: 20px;  
+      border-radius: 8px;  
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);  
+    }  
+    h1 {  
+      color: #333;  
+      text-align: center;  
+    }  
+    .control-group {  
+      margin-bottom: 20px;  
+      padding: 15px;  
+      background-color: #f9f9f9;  
+      border-radius: 5px;  
+    }  
+    label {  
+      display: inline-block;  
+      width: 200px;  
+      margin-right: 10px;  
+    }  
+    input, select {  
+      padding: 8px;  
+      border: 1px solid #ddd;  
+      border-radius: 4px;  
+      width: 150px;  
+    }  
+    button {  
+      background-color: #4CAF50;  
+      color: white;  
+      padding: 10px 15px;  
+      border: none;  
+      border-radius: 4px;  
+      cursor: pointer;  
+      margin-right: 10px;  
+    }  
+    button:hover {  
+      background-color: #45a049;  
+    }  
+    button:disabled {  
+      background-color: #cccccc;  
+    }  
+    table {  
+      width: 100%;  
+      border-collapse: collapse;  
+      margin-top: 20px;  
+    }  
+    th, td {  
+      padding: 12px;  
+      text-align: left;  
+      border-bottom: 1px solid #ddd;  
+    }  
+    th {  
+      background-color: #f2f2f2;  
+    }  
+    tr:hover {  
+      background-color: #f5f5f5;  
+    }  
+    .profitable {  
+      background-color: #e8f5e9;  
+    }  
+    #log {  
+      margin-top: 20px;  
+      padding: 15px;  
+      background-color: #333;  
+      color: #fff;  
+      border-radius: 5px;  
+      max-height: 300px;  
+      overflow-y: auto;  
+      font-family: monospace;  
+    }  
+    .toggle-container {  
+      display: inline-block;  
+      margin-left: 10px;  
+    }  
+    .toggle-switch {  
+      position: relative;  
+      display: inline-block;  
+      width: 60px;  
+      height: 34px;  
+    }  
+    .toggle-switch input {  
+      opacity: 0;  
+      width: 0;  
+      height: 0;  
+    }  
+    .slider {  
+      position: absolute;  
+      cursor: pointer;  
+      top: 0;  
+      left: 0;  
+      right: 0;  
+      bottom: 0;  
+      background-color: #ccc;  
+      transition: .4s;  
+      border-radius: 34px;  
+    }  
+    .slider:before {  
+      position: absolute;  
+      content: "";  
+      height: 26px;  
+      width: 26px;  
+      left: 4px;  
+      bottom: 4px;  
+      background-color: white;  
+      transition: .4s;  
+      border-radius: 50%;  
+    }  
+    input:checked + .slider {  
+      background-color: #4CAF50;  
+    }  
+    input:checked + .slider:before {  
+      transform: translateX(26px);  
+    }  
+  </style>  
+</head>  
+<body>  
+  <div class="container">  
+    <h1>DODO Flash Loan Arbitrage</h1>  
+    
+    <div class="control-group">  
+      <button id="connectWallet">Connect MetaMask</button>  
+      <span id="wallet">Not connected</span>  
+      
+      <div style="margin-top: 15px;">  
+        <label>Wallet Balance (USDC):</label>  
+        <span id="walletBalance">0.00</span>  
+        
+        <label style="margin-left: 20px;">Contract Balance (USDC):</label>  
+        <span id="contractBalance">0.00</span>  
+        
+        <label style="margin-left: 20px;">Accumulated Profit:</label>  
+        <span id="accumulatedProfit">0.00</span>  
+      </div>  
+    </div>  
+    
+    <div class="control-group">  
+      <label>Min Profit Percentage:</label>  
+      <input type="number" id="minProfitPct" value="0.5" step="0.1" min="0.1">  
+      
+      <label>Trade Amount (USDC):</label>  
+      <input type="number" id="tradeAmount" value="100" step="10" min="10">  
+      
+      <label>Slippage (%):</label>  
+      <input type="number" id="slippagePct" value="0.5" step="0.1" min="0">  
+      
+      <label>Max Gas Price (Gwei):</label>  
+      <input type="number" id="maxGasPrice" value="50" step="1" min="1">  
+      
+      <label>Batch Size:</label>  
+      <input type="number" id="batchSize" value="1" min="1" max="1000">  
+    </div>  
+    
+    <div class="control-group">  
+      <button id="scanNow">Scan Now</button>  
+      <button id="withdrawUSDC">Withdraw USDC</button>  
+      
+      <div class="toggle-container">  
+        <label>Auto Trade:</label>  
+        <label class="toggle-switch">  
+          <input type="checkbox" id="autoTradeToggle">  
+          <span class="slider"></span>  
+        </label>  
+      </div>  
+      
+      <div class="toggle-container">  
+        <label>Background Mode:</label>  
+        <label class="toggle-switch">  
+          <input type="checkbox" id="backgroundTradeToggle">  
+          <span class="slider"></span>  
+        </label>  
+      </div>  
+      
+      <div class="toggle-container">  
+        <label>Positive Balance Only:</label>  
+        <label class="toggle-switch">  
+          <input type="checkbox" id="positiveBalanceToggle">  
+          <span class="slider"></span>  
+        </label>  
+      </div>  
+      
+      <div class="toggle-container">  
+        <label>Accumulate Profits:</label>  
+        <label class="toggle-switch">  
+          <input type="checkbox" id="accumulateToggle" checked>  
+          <span class="slider"></span>  
+        </label>  
+      </div>  
+      
+      <div class="toggle-container">  
+        <label>Send to Contract:</label>  
+        <label class="toggle-switch">  
+          <input type="checkbox" id="sendToContractToggle">  
+          <span class="slider"></span>  
+        </label>  
+      </div>  
+    </div>  
+    
+    <div class="control-group">  
+      <label>Estimated Profit:</label>  
+      <span id="estimatedProfit">0.00</span>  
+      
+      <label style="margin-left: 20px;">Projected Contract Balance:</label>  
+      <span id="projectedBalance">0.00</span>  
+    </div>  
+    
+    <table>  
+      <thead>  
+        <tr>  
+          <th>Token</th>  
+          <th>Buy From</th>  
+          <th>Sell To</th>  
+          <th>Buy Price</th>  
+          <th>Sell Price</th>  
+          <th>Profit</th>  
+          <th>Profit %</th>  
+          <th>Status</th>  
+          <th>Action</th>  
+        </tr>  
+      </thead>  
+      <tbody id="results">  
+        <!-- Results will be populated here -->  
+      </tbody>  
+    </table>  
+    
+    <div id="log">  
+      <!-- Log messages will appear here -->  
+    </div>  
+  </div>  
+
+  <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>  
+  <script>  
+    // Contract details  
+    const contractAddress = "0x123..."; // Replace with actual contract address  
+    const contractABI = [...]; // Replace with actual ABI  
+
+    // Token addresses  
+    const tokens = {  
+      WETH: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",  
+      WBTC: "0x1BFD67037B42CfCacA5cC73aBcB5B9Ed724722c4",  
+      MATIC: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",  
+      USDC: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",  
+      LINK: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39",  
+      AAVE: "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",  
+      CRV: "0x172370d5Cd63279eFa6d502DAB29171933a610AF",  
+      SUSHI: "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",  
+      BAL: "0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3",  
+      DPI: "0x85955046DF4668e1DD369D2DE9f3AEB98dd2A369",  
+      GHST: "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7",  
+      SNX: "0x50B728D8D964fd00C2d0AAD81718b71311feF6a3",  
+      COMP: "0x8505b9d2254A7Ae468c0E9dd10Ccea3A837aef5c",  
+      UNI: "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",  
+      YFI: "0xDA537104D6A5edd53c6fBba9A898708E465260b6",  
+      MKR: "0x6f7C932e7684666C9fd1d44527765433e01fF61d",  
+      REN: "0x5ba19d656b65f1684cfea4af428c23b9f3628f97",  
+      KNC: "0x1C954E8fe737F99f68Fa1CCda3e51ebDB291948C",  
+      UMA: "0x3066818837c5e6eD6601bd5a91B0762877A6B731",  
+      BZRX: "0x54cFe73f2c7d0C1541d1d25F3Ee35C6Fb98dACc0",  
+      LRC: "0x84e1670F61347CDaeD56dcc736FB990eBB8d44e0",  
+      BNT: "0xc26D47d5c33aC71AC5CF9F776D63Ba292a4F7842",  
+      NMR: "0x0B580498951C7b5039dA2aA45D5AdDe7C2a1C2Ec",  
+      OCEAN: "0x282d8efCe846A88B159800bd4130ad77443Fa1A1",  
+      FTM: "0x4E15361FD6b4BB609Fa63C81A2be19d873717870",  
+      MANA: "0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4",  
+      ENJ: "0x7eC26842F195e568d90bD8a3D3D0b3A3e8e6106f",  
+      BAT: "0x3Cef98bb43d732E2F285eE605a8158cDE967D219",  
+      ZRX: "0x5559Edb74751A0eDE9D4f9B5e2962fA961C66e6f",  
+      REP: "0x1977BBeD4a37B3f8D6A23dCaB339C173D659A0E6",  
+      KEEP: "0x42f37A1296b2981F7C3cAcEd84c5096b2Eb0C72C",  
+    };  
+
+    // DEX router addresses  
+    const routers = {  
+      QuickSwap: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",  
+      SushiSwap: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",  
+      DODO: "0xa222e6a71D1A1Dd5F279805fbe38d5329C1D0e70",  
+      // Add more DEX routers as needed  
+    };  
+
+    // Global variables  
+    let provider;  
+    let signer;  
+    let contract;  
+    let walletAddress;  
+    let isScanning = false;  
+    let isAutoTrading = false;  
+    let isBackgroundRunning = false;  
+    let backgroundWorker;  
+    let transactionHistory = [];  
+    let accumulatedProfit = 0;  
+
+    // Initialize when page loads  
+    window.onload = function() {  
+      // Initialize ethers.js  
+      if (window.ethereum) {  
+        provider = new ethers.providers.Web3Provider(window.ethereum);  
+      } else {  
+        provider = ethers.getDefaultProvider();  
+        log("⚠️ MetaMask not detected - using read-only mode");  
+      }  
+
+      // Set up contract  
+      if (provider) {  
+        contract = new ethers.Contract(contractAddress, contractABI, provider);  
+      }  
+
+      // Set up event listeners  
+      document.getElementById("connectWallet").onclick = connectWallet;  
+      document.getElementById("scanNow").onclick = scanAndArbitrage;  
+      document.getElementById("withdrawUSDC").onclick = withdrawUSDC;  
+      document.getElementById("autoTradeToggle").onchange = toggleAutoTrade;  
+      document.getElementById("backgroundTradeToggle").onchange = toggleBackgroundTrade;  
+      document.getElementById("positiveBalanceToggle").onchange = updateSettings;  
+      document.getElementById("accumulateToggle").onchange = updateSettings;  
+      document.getElementById("sendToContractToggle").onchange = updateSettings;  
+      document.getElementById("tradeAmount").oninput = calculateProjectedProfit;  
+      document.getElementById("batchSize").oninput = updateSettings;  
+
+      // Initialize UI  
+      updateUI();  
+    };  
+
+    // Connect to MetaMask  
+    async function connectWallet() {  
+      try {  
+        if (!window.ethereum) {  
+          throw new Error("MetaMask not installed");  
+        }  
+
+        // Request account access  
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });  
+        walletAddress = accounts[0];  
+        document.getElementById("wallet").textContent = walletAddress;  
+
+        // Get signer  
+        signer = provider.getSigner();  
+        contract = contract.connect(signer);  
+
+        // Update balances  
+        await updateBalances();  
+
+        log("✅ Wallet connected successfully");  
+      } catch (error) {  
+        log(`⚠️ Failed to connect wallet: ${error.message}`);  
+      }  
+    }  
+
+    // Update token balances  
+    async function updateBalances() {  
+      if (!walletAddress) return;  
+
+      try {  
+        // Get USDC balance  
+        const usdcContract = new ethers.Contract(tokens.USDC, [  
+          "function balanceOf(address) view returns (uint256)"  
+        ], provider);  
+
+        const walletBalance = await usdcContract.balanceOf(walletAddress);  
+        const contractBalance = await usdcContract.balanceOf(contractAddress);  
+
+        document.getElementById("walletBalance").textContent =   
+          ethers.utils.formatUnits(walletBalance, 6);  
+        document.getElementById("contractBalance").textContent =   
+          ethers.utils.formatUnits(contractBalance, 6);  
+
+        // Update projected balance if input changed  
+        calculateProjectedProfit();  
+      } catch (error) {  
+        log(`⚠️ Failed to update balances: ${error.message}`);  
+      }  
+    }  
+
+    // Scan for arbitrage opportunities  
+    async function scanAndArbitrage() {  
+      if (isScanning) return;  
+      isScanning = true;  
+
+      try {  
+        log("🔍 Scanning for arbitrage opportunities...");  
+
+        // Get current gas price  
+        const gasPrice = await provider.getGasPrice();  
+        const maxGasPrice = ethers.utils.parseUnits(  
+          document.getElementById("maxGasPrice").value.toString(),   
+          "gwei"  
+        );  
+
+        if (gasPrice.gt(maxGasPrice)) {  
+          log(`⚠️ Gas price too high (${ethers.utils.formatUnits(gasPrice, "gwei")} Gwei > ${document.getElementById("maxGasPrice").value} Gwei)`);  
+          isScanning = false;  
+          return;  
+        }  
+
+        // Get trade parameters  
+        const minProfitPct = parseFloat(document.getElementById("minProfitPct").value);  
+        const tradeAmount = ethers.utils.parseUnits(  
+          document.getElementById("tradeAmount").value.toString(),   
+          6  
+        );  
+        const slippagePct = parseFloat(document.getElementById("slippagePct").value);  
+        const batchSize = parseInt(document.getElementById("batchSize").value);  
+
+        // Clear previous results  
+        document.getElementById("results").innerHTML = "";  
+
+        // Scan tokens in batches  
+        const tokenList = Object.entries(tokens);  
+        for (let i = 0; i < tokenList.length; i += batchSize) {  
+          const batch = tokenList.slice(i, i + batchSize);  
+          await Promise.all(batch.map(async ([symbol, address]) => {  
+            await checkArbitrage(symbol, address, tradeAmount, minProfitPct, slippagePct);  
+          }));  
+        }  
+
+        log("✅ Scan completed");  
+      } catch (error) {  
+        log(`⚠️ Scan failed: ${error.message}`);  
+      } finally {  
+        isScanning = false;  
+      }  
+    }  
+
+    // Check arbitrage for a specific token  
+    async function checkArbitrage(symbol, tokenAddress, tradeAmount, minProfitPct, slippagePct) {  
+      try {  
+        // Get prices from different DEXes  
+        const [quickPrice, sushiPrice, dodoPrice] = await Promise.all([  
+          getPrice(routers.QuickSwap, tokenAddress, tradeAmount),  
+          getPrice(routers.SushiSwap, tokenAddress, tradeAmount),  
+          getPrice(routers.DODO, tokenAddress, tradeAmount)  
+        ]);  
+
+        // Find best buy and sell prices  
+        const buyPrices = { QuickSwap: quickPrice, SushiSwap: sushiPrice, DODO: dodoPrice };  
+        const sellPrices = { QuickSwap: quickPrice, SushiSwap: sushiPrice, DODO: dodoPrice };  
+
+        const bestBuy = Object.entries(buyPrices).reduce((a, b) => a[1] < b[1] ? a : b);  
+        const bestSell = Object.entries(sellPrices).reduce((a, b) => a[1] > b[1] ? a : b);  
+
+        // Calculate profit  
+        const profit = bestSell[1] - bestBuy[1];  
+        const profitPct = (profit / bestBuy[1]) * 100;  
+
+        // Add to results table if profitable  
+        if (profitPct >= minProfitPct) {  
+          addResultRow(  
+            symbol,  
+            bestBuy[0],  
+            bestSell[0],  
+            bestBuy[1],  
+            bestSell[1],  
+            profit,  
+            profitPct,  
+            "Found",  
+            tradeAmount,  
+            slippagePct  
+          );  
+        }  
+      } catch (error) {  
+        log(`⚠️ Error checking ${symbol}: ${error.message}`);  
+      }  
+    }  
+
+    // Get price from a DEX router  
+    async function getPrice(routerAddress, tokenAddress, amountIn) {  
+      const router = new ethers.Contract(routerAddress, [  
+        "function getAmountsOut(uint amountIn, address[] memory path) view returns (uint[] memory amounts)"  
+      ], provider);  
+
+      const path = [tokens.USDC, tokenAddress, tokens.USDC];  
+      const amounts = await router.getAmountsOut(amountIn, path);  
+      return amounts[2]; // Return USDC amount out  
+    }  
+
+    // Add result to table  
+    function addResultRow(symbol, buyFrom, sellTo, buyPrice, sellPrice, profit, profitPct, status, tradeAmount, slippagePct) {  
+      const row = document.createElement("tr");  
+      if (profit > 0) row.classList.add("profitable");  
+
+      row.innerHTML = `  
+        <td>${symbol}</td>  
+        <td>${buyFrom}</td>  
+        <td>${sellTo}</td>  
+        <td>${ethers.utils.formatUnits(buyPrice, 6)}</td>  
+        <td>${ethers.utils.formatUnits(sellPrice, 6)}</td>  
+        <td>${ethers.utils.formatUnits(profit, 6)}</td>  
+        <td>${profitPct.toFixed(2)}%</td>  
+        <td>${status}</td>  
+        <td><button onclick="executeTrade('${symbol}', '${buyFrom}', '${sellTo}', ${tradeAmount}, ${slippagePct})">Trade</button></td>  
+      `;  
+
+      document.getElementById("results").appendChild(row);  
+    }  
+
+    // Execute arbitrage trade  
+    async function executeTrade(symbol, buyFrom, sellTo, tradeAmount, slippagePct) {  
+      if (!walletAddress) {  
+        log("⚠️ Please connect wallet first");  
+        return;  
+      }  
+
+      try {  
+        log(`⚡ Executing ${symbol} trade: ${buyFrom} → ${sellTo}`);  
+
+        // Calculate min amount out with slippage  
+        const minAmountOut = tradeAmount.mul(10000 - slippagePct * 100).div(10000);  
+
+        // Execute trade through contract  
+        const tx = await contract.executeArbitrage(  
+          tokens[symbol],  
+          routers[buyFrom],  
+          routers[sellTo],  
+          tradeAmount,  
+          minAmountOut,  
+          { gasLimit: 500000 }  
+        );  
+
+        // Wait for transaction  
+        const receipt = await tx.wait();  
+        log(`✅ Trade executed successfully (Tx: ${receipt.transactionHash})`);  
+
+        // Update balances  
+        await updateBalances();  
+
+        // Record transaction  
+        transactionHistory.push({  
+          symbol,  
+          buyFrom,  
+          sellTo,  
+          amount: ethers.utils.formatUnits(tradeAmount, 6),  
+          profit: ethers.utils.formatUnits(minAmountOut.sub(tradeAmount), 6),  
+          txHash: receipt.transactionHash,  
+          timestamp: new Date().toISOString()  
+        });  
+
+        // Update accumulated profit if accumulation is enabled  
+        if (document.getElementById("accumulateToggle").checked) {  
+          accumulatedProfit += parseFloat(ethers.utils.formatUnits(minAmountOut.sub(tradeAmount), 6));  
+          document.getElementById("accumulatedProfit").textContent = accumulatedProfit.toFixed(2);  
+        }  
+      } catch (error) {  
+        log(`⚠️ Trade failed: ${error.message}`);  
+      }  
+    }  
+
+    // Withdraw USDC from contract  
+    async function withdrawUSDC() {  
+      if (!walletAddress) {  
+        log("⚠️ Please connect wallet first");  
+        return;  
+      }  
+
+      try {  
+        log("Withdrawing USDC from contract...");  
+
+        const sendToContract = document.getElementById("sendToContractToggle").checked;  
+        const recipient = sendToContract ? contractAddress : walletAddress;  
+
+        const tx = await contract.withdrawUSDC(recipient);  
+        const receipt = await tx.wait();  
+
+        log(`✅ Withdrawal successful (Tx: ${receipt.transactionHash})`);  
+        await updateBalances();  
+      } catch (error) {  
+        log(`⚠️ Withdrawal failed: ${error.message}`);  
+      }  
+    }  
+
+    // Toggle auto trading  
+    function toggleAutoTrade() {  
+      isAutoTrading = document.getElementById("autoTradeToggle").checked;  
+      log(isAutoTrading ? "✅ Auto trading enabled" : "⏸ Auto trading disabled");  
+    }  
+
+    // Toggle background trading  
+    function toggleBackgroundTrade() {  
+      const enabled = document.getElementById("backgroundTradeToggle").checked;  
+      
+      if (enabled) {  
+        startBackgroundTrading();  
+      } else {  
+        stopBackgroundTrading();  
+      }  
+    }  
+
+    // Update settings  
+    function updateSettings() {  
+      const positiveOnly = document.getElementById("positiveBalanceToggle").checked;  
+      const accumulate = document.getElementById("accumulateToggle").checked;  
+      const sendToContract = document.getElementById("sendToContractToggle").checked;  
+      const batchSize = document.getElementById("batchSize").value;  
+
+      log(`Settings updated: PositiveOnly=${positiveOnly}, Accumulate=${accumulate}, SendToContract=${sendToContract}, BatchSize=${batchSize}`);  
+    }  
+
+    // Calculate projected profit  
+    async function calculateProjectedProfit() {  
+      try {  
+        const tradeAmount = parseFloat(document.getElementById("tradeAmount").value);  
+        if (!tradeAmount || isNaN(tradeAmount)) return;  
+
+        // Get current contract balance  
+        const usdcContract = new ethers.Contract(tokens.USDC, [  
+          "function balanceOf(address) view returns (uint256)"  
+        ], provider);  
+        
+        const currentBalance = await usdcContract
+ usdcContract.balanceOf(contractAddress);  
+        const currentBalanceFormatted = parseFloat(ethers.utils.formatUnits(currentBalance, 6));  
+
+        // Calculate projected balance based on settings  
+        const tradeAmount = parseFloat(document.getElementById("tradeAmount").value);  
+        const minProfitPct = parseFloat(document.getElementById("minProfitPct").value);  
+        const projectedProfit = tradeAmount * (minProfitPct / 100);  
+        
+        let projectedBalance;  
+        if (document.getElementById("positiveBalanceToggle").checked) {  
+          projectedBalance = Math.max(0, currentBalanceFormatted + projectedProfit);  
+        } else {  
+          projectedBalance = currentBalanceFormatted + projectedProfit;  
+        }  
+
+        // Update UI  
+        document.getElementById("projectedBalance").textContent = projectedBalance.toFixed(2);  
+        document.getElementById("projectedProfit").textContent = projectedProfit.toFixed(2);  
+      } catch (error) {  
+        console.error("Error calculating projected profit:", error);  
+      }  
+    }  
+
+    // Start background trading  
+    function startBackgroundTrading() {  
+      if (isBackgroundRunning) return;  
+      isBackgroundRunning = true;  
+      
+      const interval = parseInt(document.getElementById("scanInterval").value) * 1000;  
+      
+      backgroundWorker = setInterval(async () => {  
+        if (!isBackgroundRunning) return;  
+        
+        log("🔄 Background scan running...");  
+        await scanAndArbitrage();  
+        
+        // Execute trades automatically if enabled  
+        if (isAutoTrading) {  
+          const tradeButtons = document.querySelectorAll("#results button");  
+          for (const button of tradeButtons) {  
+            button.click();  
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Add delay between trades  
+          }  
+        }  
+      }, interval);  
+      
+      log("✅ Background trading started");  
+    }  
+
+    // Stop background trading  
+    function stopBackgroundTrading() {  
+      if (!isBackgroundRunning) return;  
+      
+      clearInterval(backgroundWorker);  
+      isBackgroundRunning = false;  
+      log("⏸ Background trading stopped");  
+    }  
+
+    // Update UI elements  
+    function updateUI() {  
+      // Set default values  
+      document.getElementById("minProfitPct").value = "0.5";  
+      document.getElementById("tradeAmount").value = "100";  
+      document.getElementById("slippagePct").value = "0.5";  
+      document.getElementById("maxGasPrice").value = "50";  
+      document.getElementById("scanInterval").value = "60";  
+      document.getElementById("batchSize").value = "5";  
+      
+      // Calculate initial projected profit  
+      calculateProjectedProfit();  
+    }  
+
+    // Log messages to UI  
+    function log(message) {  
+      const logElement = document.getElementById("log");  
+      const entry = document.createElement("div");  
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;  
+      logElement.prepend(entry);  
+      
+      // Keep log to 100 entries max  
+      if (logElement.children.length > 100) {  
+        logElement.removeChild(logElement.lastChild);  
+      }  
+    }  
+
+    // Export transaction history  
+    function exportHistory() {  
+      if (transactionHistory.length === 0) {  
+        log("⚠️ No transactions to export");  
+        return;  
+      }  
+      
+      try {  
+        const csvContent = [  
+          "Symbol,Buy From,Sell To,Amount,Profit,Tx Hash,Timestamp",  
+          ...transactionHistory.map(tx =>   
+            `${tx.symbol},${tx.buyFrom},${tx.sellTo},${tx.amount},${tx.profit},${tx.txHash},${tx.timestamp}`  
+          )  
+        ].join("\n");  
+        
+        const blob = new Blob([csvContent], { type: "text/csv" });  
+        const url = URL.createObjectURL(blob);  
+        const a = document.createElement("a");  
+        a.href = url;  
+        a.download = `arbitrage_history_${new Date().toISOString().slice(0,10)}.csv`;  
+        document.body.appendChild(a);  
+        a.click();  
+        document.body.removeChild(a);  
+        
+        log("✅ Transaction history exported");  
+      } catch (error) {  
+        log(`⚠️ Failed to export history: ${error.message}`);  
+      }  
+    }  
+
+    // Contract ABI (simplified for example)  
+    const contractABI = [  
+      "function executeArbitrage(address token, address buyRouter, address sellRouter, uint256 amountIn, uint256 minAmountOut) external returns (uint256)",  
+      "function withdrawUSDC(address recipient) external",  
+      "function getBalance() external view returns (uint256)"  
+    ];  
+
+    // Contract address (replace with your actual contract address)  
+    const contractAddress = "0x1234567890123456789012345678901234567890";  
+
+    // Expose functions to global scope for HTML buttons  
+    window.executeTrade = executeTrade;  
+    window.exportHistory = exportHistory;  
+  </script>  
+</body>  
+</html>
